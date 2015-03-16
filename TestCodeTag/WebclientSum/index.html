@@ -1,0 +1,221 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <script type="text/javascript">
+        var webSocket;
+        var chartInfo = {
+            y: { min: 0, max: 100, steps: 10, label: "Valor" },
+            x: { min: 0, max: 200, steps: 10, label: "Tiempo" }
+        };
+        var CHART_PADDING = 20;
+        var wid;
+        var hei;
+
+        var connect = function () {
+
+            
+
+            var can = document.getElementById("grafica");
+            wid = can.width;
+            hei = can.height;
+            var context = can.getContext("2d");
+            context.fillStyle = "#eeeeee";
+            context.strokeStyle = "#999999";
+            context.fillRect(0,0,wid,hei);
+            context.font = "10pt Verdana, sans-serif";
+            context.fillStyle = "#999999";
+            context.moveTo(CHART_PADDING,CHART_PADDING);
+            context.rect(CHART_PADDING,CHART_PADDING,wid-CHART_PADDING*2,hei-CHART_PADDING*2);
+            context.stroke();
+            context.strokeStyle = "#cccccc";
+            fillChart(context,chartInfo);
+            
+
+            var serverAddressInput = document.getElementById("serverAddress");
+            var address = serverAddressInput.value;
+            webSocket = new WebSocket(address);
+            webSocket.onopen = function (e) {
+                changeState(true);
+                log("Connection open...");
+            };
+
+            webSocket.onerror = function (e) {
+                changeState(false);
+                log("Connection error...");
+            };
+
+            webSocket.onmessage = function (e) {
+                //if (typeof e.data === "string")
+                //    log("Received : " + e.data);
+                //else
+                //    log("Binary message received...");
+            };
+            webSocket.onclose = function (e) {
+                log("Connection Closed...");
+                changeState(false);
+            };
+
+            // para resibir sumas
+            webSocketResult = new WebSocket("ws://127.0.0.1:54322");
+            webSocketResult.onopen = function (e) {
+                webSocketResult.send("escuchar");
+                log("Connection open...");
+            };
+
+            webSocketResult.onmessage = function (e) {
+                var arrDatos = e.data.toString().split(",");
+                var data = [{
+                    label: "",
+                    Tiempo: arrDatos[1],
+                    Valor: arrDatos[0],
+                    style: "#ff0000"
+                }];
+                createDots(context, data);
+                log("Received : " + e.data);
+            };
+
+            webSocketResult.onclose = function (e) {
+
+            };
+
+        };
+        var disconnect = function () {
+            log("Closing connection...");
+            webSocket.close();
+        };
+        var log = function (message) {
+            var text = document.createTextNode(message);
+            var div = document.createElement('div');
+            div.appendChild(text);
+            div.innerText = message;
+
+            document.getElementById("messages").appendChild(div);
+        };
+        var changeState = function (isConnected) {
+            var container = document.getElementById("messageInputContainer");
+            container.style.visibility = isConnected ? "visible" : "collapse";
+
+            var connectButton = document.getElementById("connect");
+            connectButton.disabled = isConnected;
+
+            var disconnectButton = document.getElementById("disconnect");
+            disconnectButton.disabled = !isConnected;
+        };
+        var send = function () {
+            if (webSocket.readyState != 1) {
+                log("Cannot send data when the connection is closed...");
+                return;
+            }
+            var messageInput = document.getElementById("number")
+            var message = messageInput.value;
+            log("Sending : " + message);
+            webSocket.send(message);
+        };
+       
+       
+        // grafico
+
+        function fillChart(context, chartInfo){
+            var yData = chartInfo.y;
+            var steps = yData.steps;
+            var startY = CHART_PADDING;
+            var endY = hei-CHART_PADDING;
+            var chartHeight = endY-startY;
+            var currentY;
+            var rangeLength = yData.max-yData.min;
+            var stepSize = rangeLength/steps;
+            context.textAlign = "left";
+            for(var i=0; i<steps; i++){
+                currentY = startY + (i/steps) * chartHeight;
+                context.moveTo(wid-CHART_PADDING, currentY );
+                context.lineTo(CHART_PADDING,currentY);
+                context.fillText(yData.min+stepSize*(steps-i), 0, currentY+4);
+            }
+            currentY = startY + chartHeight;
+            context.moveTo(CHART_PADDING, currentY);
+            context.lineTo(CHART_PADDING / 2, currentY);
+            context.fillText(yData.min, 0, currentY - 3);
+            var xData = chartInfo.x;
+            steps = xData.steps;
+            var startX = CHART_PADDING;
+            var endX = wid - CHART_PADDING;
+            var chartWidth = endX - startX;
+            var currentX;
+            rangeLength = xData.max - xData.min;
+            stepSize = rangeLength / steps;
+            context.textAlign = "left";
+            for (var i = 0; i < steps; i++) {
+                currentX = startX + (i / steps) * chartWidth;
+                context.moveTo(currentX, startY);
+                context.lineTo(currentX, endY);
+                context.fillText(xData.min + stepSize * (i), currentX - 6,
+                endY + CHART_PADDING / 2);
+            }
+            currentX = startX + chartWidth;
+            context.moveTo(currentX, startY);
+            context.lineTo(currentX, endY);
+            context.fillText(xData.max, currentX - 3, endY + CHART_PADDING / 2);
+            context.stroke();
+        }
+
+        function createDots(context, data) {
+            var yDataLabel = chartInfo.y.label;
+            var xDataLabel = chartInfo.x.label;
+            var yDataRange = chartInfo.y.max - chartInfo.y.min;
+            var xDataRange = chartInfo.x.max - chartInfo.x.min;
+            var chartHeight = hei - CHART_PADDING * 2;
+            var chartWidth = wid - CHART_PADDING * 2;
+            var yPos;
+            var xPos;
+            for (var i = 0; i < data.length; i++) {
+                xPos = CHART_PADDING + (data[i][xDataLabel] - chartInfo.x.min) /
+                xDataRange * chartWidth;
+                yPos = (hei - CHART_PADDING) - (data[i][yDataLabel] -
+                chartInfo.y.min) / yDataRange * chartHeight;
+                context.fillStyle = data[i].style;
+                context.fillRect(xPos - 4, yPos - 4, 8, 8);
+            }
+        }
+
+    </script>
+</head>
+<body style="font-size:xx-large">
+    <div>
+        <span>Server Address : </span>
+        <input id=serverAddress type=text value=ws://127.0.0.1:54321>
+        <button id=connect onclick=connect()>Connect</button>
+        <button id=disconnect onclick=disconnect() disabled>Disconnect</button>
+    </div>
+
+    <div id=messageInputContainer style="visibility: collapse">
+        <span>Enviar numero: </span>
+          <select name="numbers" size="1" id="number">
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+            <option>4</option>
+            <option>5</option>
+            <option>6</option>
+            <option>7</option>
+            <option>8</option>
+            <option>9</option>
+            <option>10</option>
+            <option>11</option>
+            <option>12</option>
+            <option>13</option>
+            <option>14</option>
+            <option>15</option>
+            <option>16</option>
+            <option>17</option>
+            <option>18</option>
+            <option>19</option>
+            <option>20</option>
+         </select>
+        <button onclick=send()>Send</button>
+    </div>
+
+    <div id=messages>
+        <canvas id="grafica" width="800" height="500"></canvas>
+    </div>
+</body>
+</html>
